@@ -25,12 +25,9 @@ class ACO_TSP:
         self.q = q
         self.pheromone = {(i, j): 1.0 for i in self.nodes for j in self.nodes if i != j}
 
-    def run(self, start):
-        best_path = None
-        best_cost = float('inf')
-        best_paths = []
-        best_costs = []
-        seen = set()
+    def run(self, start, top_k=3):
+        # Track best cost per unique tour (tuple(path)) across all ants/iterations.
+        best_cost_by_tour = {}
         for it in range(self.num_iterations):
             all_paths = []
             all_costs = []
@@ -58,12 +55,10 @@ class ACO_TSP:
                 cost = sum(self.G[path[i]][path[i+1]]['cost'] for i in range(len(path)-1))
                 all_paths.append(path)
                 all_costs.append(cost)
-                if cost < best_cost and tuple(path) not in seen:
-                    best_path = path
-                    best_cost = cost
-                    seen.add(tuple(path))
-                    best_paths.append(path)
-                    best_costs.append(cost)
+                tour = tuple(path)
+                prev = best_cost_by_tour.get(tour)
+                if prev is None or cost < prev:
+                    best_cost_by_tour[tour] = cost
             # Pheromone evaporation
             for k in self.pheromone:
                 self.pheromone[k] *= (1 - self.rho)
@@ -71,19 +66,11 @@ class ACO_TSP:
             for path, cost in zip(all_paths, all_costs):
                 for i in range(len(path)-1):
                     self.pheromone[(path[i], path[i+1])] += self.q / cost
-        # Return up to 3 best unique tours
-        unique = []
-        unique_costs = []
-        seen = set()
-        for p, c in zip(best_paths, best_costs):
-            t = tuple(p)
-            if t not in seen:
-                unique.append(p)
-                unique_costs.append(c)
-                seen.add(t)
-            if len(unique) == 3:
-                break
-        return unique, unique_costs
+
+        ranked = sorted(best_cost_by_tour.items(), key=lambda kv: kv[1])
+        paths = [list(tour) for tour, _ in ranked[:top_k]]
+        costs = [cost for _, cost in ranked[:top_k]]
+        return paths, costs
 
 # ----------------------------
 # 1) Define nodes (major towns) with coordinates (lat, lon)
@@ -184,9 +171,18 @@ def main():
         print(" -> ".join(p))
         print(f"Total time: {c/3600:.2f} hours")
 
-    # Plot all 3 best tours on the map
-    plot_multiple_routes_xy_with_map(best_paths[:3], title="Top 3 ACO Roadtrip Tours (Europe)")
-    print("\nSaved graph: best_routes_map_osm.png (OpenStreetMap background)")
+    # Plot each of the top 3 tours on its own map, with arrows + visit order numbers
+    colors = ['blue', 'green', 'orange']
+    for idx, path in enumerate(best_paths[:3]):
+        out_png = f"best_route_{idx+1}_map_osm.png"
+        hrs = best_costs[idx] / 3600.0
+        plot_route_xy_with_map(
+            path,
+            title=f"ACO European Roadtrip #{idx+1} - {hrs:.2f} hours",
+            filename=out_png,
+            color=colors[idx % len(colors)],
+        )
+    print("\nSaved maps: best_route_1_map_osm.png, best_route_2_map_osm.png, best_route_3_map_osm.png")
 # --- Modified function: plot multiple ACO routes on OpenStreetMap background ---
 def plot_multiple_routes_xy_with_map(paths, title, colors=None):
     from pyproj import Transformer
@@ -196,6 +192,7 @@ def plot_multiple_routes_xy_with_map(paths, title, colors=None):
         colors = ['blue', 'green', 'orange']
 
     ax = None
+    all_route_geoms = []
     for idx, path in enumerate(paths):
         lines = []
         for i in range(len(path) - 1):
@@ -207,7 +204,9 @@ def plot_multiple_routes_xy_with_map(paths, title, colors=None):
                 continue
             coords = polyline.decode(geom)
             merc_coords = [transformer.transform(lon, lat) for lat, lon in coords]
-            lines.append(LineString(merc_coords))
+            ls = LineString(merc_coords)
+            lines.append(ls)
+            all_route_geoms.append(ls)
         gdf_lines = gpd.GeoDataFrame(geometry=lines, crs="EPSG:3857")
         ax = gdf_lines.plot(ax=ax, figsize=(12, 10) if ax is None else None, color=colors[idx % len(colors)], linewidth=2, zorder=2+idx)
 
@@ -221,16 +220,119 @@ def plot_multiple_routes_xy_with_map(paths, title, colors=None):
         x, y = gdf_points.geometry.iloc[i].x, gdf_points.geometry.iloc[i].y
         ax.text(x, y, n, fontsize=12, zorder=11)
 
-    minx, miny = transformer.transform(99.5, 1.2)
-    maxx, maxy = transformer.transform(104.5, 6.5)
-    ax.set_xlim(minx, maxx)
-    ax.set_ylim(miny, maxy)
+    # Auto-zoom to the plotted Europe routes (removes the old Malaysia bounding box).
+    # Prefer the actual route geometries; fall back to the city points if needed.
+    bounds_sources = []
+    if all_route_geoms:
+        bounds_sources.extend(all_route_geoms)
+    else:
+        bounds_sources.extend(list(gdf_points.geometry))
+
+    minx = min(g.bounds[0] for g in bounds_sources)
+    miny = min(g.bounds[1] for g in bounds_sources)
+    maxx = max(g.bounds[2] for g in bounds_sources)
+    maxy = max(g.bounds[3] for g in bounds_sources)
+
+    # Add a small padding so lines/labels aren't flush to the edge.
+    pad_x = max((maxx - minx) * 0.08, 10_000)  # at least ~10km
+    pad_y = max((maxy - miny) * 0.08, 10_000)
+    ax.set_xlim(minx - pad_x, maxx + pad_x)
+    ax.set_ylim(miny - pad_y, maxy + pad_y)
 
     ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
     ax.set_axis_off()
     plt.title(title)
     plt.tight_layout()
     plt.savefig("best_routes_map_osm.png", dpi=200)
+    plt.show()
+
+
+def plot_route_xy_with_map(path, title, filename, color='blue'):
+    from pyproj import Transformer
+
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+
+    # Build route linework from OSRM geometries
+    lines = []
+    arrow_segments = []
+    for i in range(len(path) - 1):
+        u, v = path[i], path[i + 1]
+        try:
+            geom = G[u][v]["geometry"]
+        except Exception:
+            continue
+        coords = polyline.decode(geom)
+        merc_coords = [transformer.transform(lon, lat) for lat, lon in coords]
+        if len(merc_coords) >= 2:
+            # Arrow: take two points around the middle of the polyline
+            mid = len(merc_coords) // 2
+            a0 = merc_coords[max(0, mid - 1)]
+            a1 = merc_coords[min(len(merc_coords) - 1, mid + 1)]
+            arrow_segments.append((a0, a1))
+        lines.append(LineString(merc_coords))
+
+    gdf_lines = gpd.GeoDataFrame(geometry=lines, crs="EPSG:3857")
+    ax = gdf_lines.plot(figsize=(12, 10), color=color, linewidth=2.5, zorder=3)
+
+    # Plot all city points
+    points = [Point(NODES[n][1], NODES[n][0]) for n in NODES]
+    gdf_points = gpd.GeoDataFrame(geometry=points, crs="EPSG:4326").to_crs(epsg=3857)
+    gdf_points.plot(ax=ax, color='red', marker='o', markersize=35, zorder=6)
+
+    # Number destinations in visit order for this specific route
+    # (Exclude the final repeated start city if present)
+    visit_sequence = path[:-1] if len(path) >= 2 and path[0] == path[-1] else path
+    order_by_city = {city: idx + 1 for idx, city in enumerate(visit_sequence)}
+
+    for i, city in enumerate(NODES):
+        x, y = gdf_points.geometry.iloc[i].x, gdf_points.geometry.iloc[i].y
+        if city in order_by_city:
+            ax.text(
+                x,
+                y,
+                str(order_by_city[city]),
+                fontsize=12,
+                fontweight='bold',
+                color='white',
+                ha='center',
+                va='center',
+                zorder=10,
+                bbox=dict(boxstyle='circle,pad=0.25', facecolor='black', edgecolor='none', alpha=0.7),
+            )
+        else:
+            ax.text(x, y, city, fontsize=10, zorder=9)
+
+    # Draw direction arrows (one per leg) roughly following the road geometry
+    for (x0, y0), (x1, y1) in arrow_segments:
+        ax.annotate(
+            "",
+            xy=(x1, y1),
+            xytext=(x0, y0),
+            arrowprops=dict(arrowstyle='->', color=color, lw=2),
+            zorder=8,
+        )
+
+    # Auto-zoom to this route + city points
+    bounds_sources = []
+    if lines:
+        bounds_sources.extend(lines)
+    else:
+        bounds_sources.extend(list(gdf_points.geometry))
+
+    minx = min(g.bounds[0] for g in bounds_sources)
+    miny = min(g.bounds[1] for g in bounds_sources)
+    maxx = max(g.bounds[2] for g in bounds_sources)
+    maxy = max(g.bounds[3] for g in bounds_sources)
+    pad_x = max((maxx - minx) * 0.08, 10_000)
+    pad_y = max((maxy - miny) * 0.08, 10_000)
+    ax.set_xlim(minx - pad_x, maxx + pad_x)
+    ax.set_ylim(miny - pad_y, maxy + pad_y)
+
+    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+    ax.set_axis_off()
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=200)
     plt.show()
 
 def plot_bar_compare(aco_sec, dijkstra_sec):
