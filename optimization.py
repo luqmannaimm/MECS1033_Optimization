@@ -1,360 +1,280 @@
+# Subject       : MECS1033 Advanced Artificial Intelligence
+# Task          : Assignment 3 - Optimization
+# Script name   : optimization.py
+# Description   : Optimization using Ant Colony Optimization
+# Author        : MEC255017 - luqmannaim@graduate.utm.my
+
+from __future__ import annotations
 
 import math
-import requests
-import networkx as nx
-import matplotlib.pyplot as plt
-# --- Additional imports for map plotting ---
-# Requires: pip install contextily geopandas shapely polyline
-import geopandas as gpd
-import contextily as ctx
-from shapely.geometry import Point, LineString
-import polyline
+import time
+import folium
+import numpy as np
 
+# ACO solver downloaded from github
+from aco.AntColonyOptimizer import AntColonyOptimizer
 
-# --- Simple ACO for TSP (self-contained) ---
-import random
-class ACO_TSP:
-    def __init__(self, G, num_ants=50, num_iterations=100, alpha=1.0, beta=3.0, rho=0.1, q=1.0):
-        self.G = G
-        self.nodes = list(G.nodes)
-        self.num_ants = num_ants
-        self.num_iterations = num_iterations
-        self.alpha = alpha
-        self.beta = beta
-        self.rho = rho
-        self.q = q
-        self.pheromone = {(i, j): 1.0 for i in self.nodes for j in self.nodes if i != j}
+###################
+# PLACES TO VISIT #
+###################
 
-    def run(self, start, top_k=3):
-        # Track best cost per unique tour (tuple(path)) across all ants/iterations.
-        best_cost_by_tour = {}
-        for it in range(self.num_iterations):
-            all_paths = []
-            all_costs = []
-            for ant in range(self.num_ants):
-                path = [start]
-                unvisited = set(self.nodes)
-                unvisited.remove(start)
-                while unvisited:
-                    current = path[-1]
-                    choices = list(unvisited)
-                    probs = []
-                    for nxt in choices:
-                        tau = self.pheromone[(current, nxt)] ** self.alpha
-                        eta = (1.0 / self.G[current][nxt]['cost']) ** self.beta
-                        probs.append(tau * eta)
-                    s = sum(probs)
-                    if s == 0:
-                        probs = [1.0 for _ in choices]
-                        s = sum(probs)
-                    probs = [p / s for p in probs]
-                    next_city = random.choices(choices, weights=probs)[0]
-                    path.append(next_city)
-                    unvisited.remove(next_city)
-                path.append(start)  # return to start
-                cost = sum(self.G[path[i]][path[i+1]]['cost'] for i in range(len(path)-1))
-                all_paths.append(path)
-                all_costs.append(cost)
-                tour = tuple(path)
-                prev = best_cost_by_tour.get(tour)
-                if prev is None or cost < prev:
-                    best_cost_by_tour[tour] = cost
-            # Pheromone evaporation
-            for k in self.pheromone:
-                self.pheromone[k] *= (1 - self.rho)
-            # Pheromone update
-            for path, cost in zip(all_paths, all_costs):
-                for i in range(len(path)-1):
-                    self.pheromone[(path[i], path[i+1])] += self.q / cost
-
-        ranked = sorted(best_cost_by_tour.items(), key=lambda kv: kv[1])
-        paths = [list(tour) for tour, _ in ranked[:top_k]]
-        costs = [cost for _, cost in ranked[:top_k]]
-        return paths, costs
-
-# ----------------------------
-# 1) Define nodes (major towns) with coordinates (lat, lon)
-#    You can add/remove nodes to refine realism.
-# ----------------------------
-
-# European roadtrip cities with coordinates (lat, lon)
-NODES = {
-    "Madrid": (40.4168, -3.7038),
-    "Paris": (48.8566, 2.3522),
-    "Brussels": (50.8503, 4.3517),
-    "Amsterdam": (52.3676, 4.9041),
-    "Frankfurt": (50.1109, 8.6821),
-    "Zurich": (47.3769, 8.5417),
-    "Vienna": (48.2082, 16.3738),
-    "Milan": (45.4642, 9.1900),
+# Approximate coordiantes for Open Street Map
+POINTS_OF_INTEREST: dict[str, tuple[float, float]] = {
+    "KLCC": (3.1579, 101.7123),
+    "Menara Kuala Lumpur": (3.1528, 101.7037),
+    "Merdeka Square": (3.1486, 101.6932),
+    "Menara TRX": (3.1420, 101.7199),
+    "Stadium Merdeka": (3.1397, 101.7000),
+    "National Mosque of Malaysia": (3.1419, 101.6910),
+    "Berjaya Times Square": (3.1420, 101.7119),
+    "Malaysia National Museum": (3.1379, 101.6870),
 }
+START_POINT = "KLCC" # Start and end here
 
-START = "Madrid"
-GOAL = "Madrid"  # Roadtrip: start and end at Madrid
+########################
+# DISTANCE CALCULATION #
+########################
 
-# ----------------------------
-# 2) Define candidate edges (graph connectivity)
-#    This removes the "3 routes only" restriction.
-#    ACO will pick any path available in this graph.
-# ----------------------------
+def compute_haversine(a_lat: float, a_lon: float, b_lat: float, b_lon: float) -> float:
+    """Distance between two points in kilometers"""
 
-# Build a complete graph (all pairs, both directions)
-EDGES = []
-city_list = list(NODES.keys())
-for i in range(len(city_list)):
-    for j in range(len(city_list)):
-        if i != j:
-            EDGES.append((city_list[i], city_list[j]))
+    # Haversine formula
+    r = 6371.0                              # Earth radius in km
+    phi1 = math.radians(a_lat)              # Latitude of point A in radians
+    phi2 = math.radians(b_lat)              # Latitude of point B in radians
+    dphi = math.radians(b_lat - a_lat)      # Delta latitude in radians
+    dlambda = math.radians(b_lon - a_lon)   # Delta longitude in radians
 
+    # Haversine calculation
+    h = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
 
-# ----------------------------
-# 3) OSRM route request (fastest route time between 2 coords)
-# ----------------------------
-OSRM_ROUTE = "https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
-OSRM_ROUTE_GEOM = "https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=polyline"
+    # Return distance in km
+    return 2 * r * math.asin(math.sqrt(h))
 
-def osrm_route_info(a_lat, a_lon, b_lat, b_lon):
-    """Returns (duration_seconds, geometry_polyline)"""
-    url = OSRM_ROUTE_GEOM.format(lon1=a_lon, lat1=a_lat, lon2=b_lon, lat2=b_lat)
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    route = data["routes"][0]
-    return float(route["duration"]), route["geometry"]
+def compute_distance_matrix(poi_names: list[str]) -> np.ndarray:
+    """Create a matrix of straight-line distances in km for points of interest"""
 
-def osrm_duration_seconds(a_lat, a_lon, b_lat, b_lon) -> float:
-    # For backward compatibility (if needed elsewhere)
-    url = OSRM_ROUTE.format(lon1=a_lon, lat1=a_lat, lon2=b_lon, lat2=b_lat)
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    return float(data["routes"][0]["duration"])
+    # Create empty distance matrix
+    n = len(poi_names)
+    matrix = np.zeros((n, n), dtype=float)
 
-# ----------------------------
-# 4) Build graph with edge costs from OSRM
-# ----------------------------
-def build_graph():
-    G = nx.DiGraph()
-    for name in NODES:
-        G.add_node(name)
-
-    for u, v in EDGES:
-        lat1, lon1 = NODES[u]
-        lat2, lon2 = NODES[v]
-        dur, geom = osrm_route_info(lat1, lon1, lat2, lon2)
-        # aco_routing expects edge attribute "cost"
-        G.add_edge(u, v, cost=dur, geometry=geom)
-        # add reverse too (roads are mostly bidirectional at this level)
-        dur_rev, geom_rev = osrm_route_info(lat2, lon2, lat1, lon1)
-        G.add_edge(v, u, cost=dur_rev, geometry=geom_rev)
-    return G
-
-
-def main():
-    global G  # So plot function can access edge geometry
-    print("Building graph + fetching edge times from OSRM...")
-    G = build_graph()
-    print(f"Graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
-
-    # Find 3 best ACO TSP tours (start and end at Madrid, visit all cities)
-    aco = ACO_TSP(G, num_ants=120, num_iterations=200)
-    best_paths, best_costs = aco.run(START)
-
-    # If fewer than 3 unique tours, duplicate the best found so that 3 are always plotted
-    if len(best_paths) < 3 and len(best_paths) > 0:
-        while len(best_paths) < 3:
-            best_paths.append(best_paths[0])
-            best_costs.append(best_costs[0])
-
-    for idx, (p, c) in enumerate(zip(best_paths, best_costs)):
-        print(f"\n[ACO Route {idx+1}] (Tour)")
-        print(" -> ".join(p))
-        print(f"Total time: {c/3600:.2f} hours")
-
-    # Plot each of the top 3 tours on its own map, with arrows + visit order numbers
-    colors = ['blue', 'green', 'orange']
-    for idx, path in enumerate(best_paths[:3]):
-        out_png = f"best_route_{idx+1}_map_osm.png"
-        hrs = best_costs[idx] / 3600.0
-        plot_route_xy_with_map(
-            path,
-            title=f"ACO European Roadtrip #{idx+1} - {hrs:.2f} hours",
-            filename=out_png,
-            color=colors[idx % len(colors)],
-        )
-    print("\nSaved maps: best_route_1_map_osm.png, best_route_2_map_osm.png, best_route_3_map_osm.png")
-# --- Modified function: plot multiple ACO routes on OpenStreetMap background ---
-def plot_multiple_routes_xy_with_map(paths, title, colors=None):
-    from pyproj import Transformer
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-
-    if colors is None:
-        colors = ['blue', 'green', 'orange']
-
-    ax = None
-    all_route_geoms = []
-    for idx, path in enumerate(paths):
-        lines = []
-        for i in range(len(path) - 1):
-            u, v = path[i], path[i+1]
-            geom = None
-            try:
-                geom = G[u][v]["geometry"]
-            except Exception:
+    # Fill in distances for each point
+    for i, a in enumerate(poi_names):
+        a_lat, a_lon = POINTS_OF_INTEREST[a]
+        for j, b in enumerate(poi_names):
+            if i == j:
                 continue
-            coords = polyline.decode(geom)
-            merc_coords = [transformer.transform(lon, lat) for lat, lon in coords]
-            ls = LineString(merc_coords)
-            lines.append(ls)
-            all_route_geoms.append(ls)
-        gdf_lines = gpd.GeoDataFrame(geometry=lines, crs="EPSG:3857")
-        ax = gdf_lines.plot(ax=ax, figsize=(12, 10) if ax is None else None, color=colors[idx % len(colors)], linewidth=2, zorder=2+idx)
+            b_lat, b_lon = POINTS_OF_INTEREST[b]
+            matrix[i, j] = compute_haversine(a_lat, a_lon, b_lat, b_lon)
 
-    # Plot the points (start/end)
-    points = [Point(NODES[n][1], NODES[n][0]) for n in NODES]
-    gdf_points = gpd.GeoDataFrame(geometry=points, crs="EPSG:4326").to_crs(epsg=3857)
-    gdf_points.plot(ax=ax, color='red', marker='o', zorder=10)
+    # Return distance matrix
+    return matrix
 
-    # Annotate points
-    for i, n in enumerate(NODES):
-        x, y = gdf_points.geometry.iloc[i].x, gdf_points.geometry.iloc[i].y
-        ax.text(x, y, n, fontsize=12, zorder=11)
+###################################
+# CONVERT COORDINATES TO DISTANCE #
+###################################
 
-    # Auto-zoom to the plotted Europe routes (removes the old Malaysia bounding box).
-    # Prefer the actual route geometries; fall back to the city points if needed.
-    bounds_sources = []
-    if all_route_geoms:
-        bounds_sources.extend(all_route_geoms)
-    else:
-        bounds_sources.extend(list(gdf_points.geometry))
+def convert_coor_to_dist(city_names: list[str]) -> list[list[float]]:
+    """Convert latitude and longitude into xy distance in km"""
 
-    minx = min(g.bounds[0] for g in bounds_sources)
-    miny = min(g.bounds[1] for g in bounds_sources)
-    maxx = max(g.bounds[2] for g in bounds_sources)
-    maxy = max(g.bounds[3] for g in bounds_sources)
+    # Extract latitudes and longitudes
+    lats = np.array([POINTS_OF_INTEREST[name][0] for name in city_names], dtype=float)
+    lons = np.array([POINTS_OF_INTEREST[name][1] for name in city_names], dtype=float)
 
-    # Add a small padding so lines/labels aren't flush to the edge.
-    pad_x = max((maxx - minx) * 0.08, 10_000)  # at least ~10km
-    pad_y = max((maxy - miny) * 0.08, 10_000)
-    ax.set_xlim(minx - pad_x, maxx + pad_x)
-    ax.set_ylim(miny - pad_y, maxy + pad_y)
+    # Get the middle latitude
+    lat0 = float(np.mean(lats))
 
-    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
-    ax.set_axis_off()
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig("best_routes_map_osm.png", dpi=200)
-    plt.show()
+    # Latitude to y conversion
+    # Approximation of km per latitude -> 1 deg lat = 111.32 km
+    km_lat = 111.32
+    y = (lats - lat0) * km_lat
 
+    # Longitude to x conversion
+    # Approximation of km per longitude -> 1 deg lon = 111.32 * cos(lat0) km
+    km_lon = 111.32 * math.cos(math.radians(lat0))
+    x = (lons - float(np.mean(lons))) * km_lon
+    
+    # Return list of xy points
+    return np.column_stack([x, y]).tolist()
 
-def plot_route_xy_with_map(path, title, filename, color='blue'):
-    from pyproj import Transformer
+def rotate_cycle(cycle: list[str], start_point: str) -> list[str]:
+    """Rotate a cycle so it begins at start point"""
 
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+    # Find index of start point
+    idx = cycle.index(start_point)
 
-    # Build route linework from OSRM geometries
-    lines = []
-    arrow_segments = []
-    for i in range(len(path) - 1):
-        u, v = path[i], path[i + 1]
-        try:
-            geom = G[u][v]["geometry"]
-        except Exception:
-            continue
-        coords = polyline.decode(geom)
-        merc_coords = [transformer.transform(lon, lat) for lat, lon in coords]
-        if len(merc_coords) >= 2:
-            # Arrow: take two points around the middle of the polyline
-            mid = len(merc_coords) // 2
-            a0 = merc_coords[max(0, mid - 1)]
-            a1 = merc_coords[min(len(merc_coords) - 1, mid + 1)]
-            arrow_segments.append((a0, a1))
-        lines.append(LineString(merc_coords))
+    # Rotate cycle to start from start point
+    return cycle[idx:] + cycle[:idx]
 
-    gdf_lines = gpd.GeoDataFrame(geometry=lines, crs="EPSG:3857")
-    ax = gdf_lines.plot(figsize=(12, 10), color=color, linewidth=2.5, zorder=3)
+##################################
+# RUN ANT COLONY OPTIMIZER (ACO) #
+##################################
 
-    # Plot all city points
-    points = [Point(NODES[n][1], NODES[n][0]) for n in NODES]
-    gdf_points = gpd.GeoDataFrame(geometry=points, crs="EPSG:4326").to_crs(epsg=3857)
-    gdf_points.plot(ax=ax, color='red', marker='o', markersize=35, zorder=6)
+def run_aco(
+    point_names: list[str],
+    distance_matrix_km: np.ndarray,
+    start_point: str,
+    runs: int,
+    top_k: int,
+    ants: int,
+    iterations: int,
+    evaporation_rate: float,
+    intensification: float,
+    alpha: float,
+    beta: float,
+    beta_evaporation_rate: float,
+    choose_best: float,
+    conv_crit: int,
+) -> tuple[list[list[str]], list[float]]:
+    """Find a good visiting order using ACO"""
 
-    # Number destinations in visit order for this specific route
-    # (Exclude the final repeated start city if present)
-    visit_sequence = path[:-1] if len(path) >= 2 and path[0] == path[-1] else path
-    order_by_city = {city: idx + 1 for idx, city in enumerate(visit_sequence)}
+    # Convert lat and lon to xy distances in km
+    points = convert_coor_to_dist(point_names)
 
-    for i, city in enumerate(NODES):
-        x, y = gdf_points.geometry.iloc[i].x, gdf_points.geometry.iloc[i].y
-        if city in order_by_city:
-            ax.text(
-                x,
-                y,
-                str(order_by_city[city]),
-                fontsize=12,
-                fontweight='bold',
-                color='white',
-                ha='center',
-                va='center',
-                zorder=10,
-                bbox=dict(boxstyle='circle,pad=0.25', facecolor='black', edgecolor='none', alpha=0.7),
-            )
-        else:
-            ax.text(x, y, city, fontsize=10, zorder=9)
+    # Keep best score for each unique route
+    best_by_route: dict[tuple[str, ...], float] = {}
 
-    # Draw direction arrows (one per leg) roughly following the road geometry
-    for (x0, y0), (x1, y1) in arrow_segments:
-        ax.annotate(
-            "",
-            xy=(x1, y1),
-            xytext=(x0, y0),
-            arrowprops=dict(arrowstyle='->', color=color, lw=2),
-            zorder=8,
+    # Try multiple random runs
+    for seed in range(runs):
+
+        # Set random seed
+        np.random.seed(seed)
+
+        # Create ACO solver
+        aco = AntColonyOptimizer(
+            ants=ants,
+            evaporation_rate=evaporation_rate,
+            intensification=intensification,
+            alpha=alpha,
+            beta=beta,
+            beta_evaporation_rate=beta_evaporation_rate,
+            choose_best=choose_best,
         )
 
-    # Auto-zoom to this route + city points
-    bounds_sources = []
-    if lines:
-        bounds_sources.extend(lines)
-    else:
-        bounds_sources.extend(list(gdf_points.geometry))
+        # Fit ACO to points
+        aco.fit(
+            points,
+            iterations=iterations,
+            mode='min',
+            conv_crit=conv_crit,
+            verbose=(seed == 0),
+        )
 
-    minx = min(g.bounds[0] for g in bounds_sources)
-    miny = min(g.bounds[1] for g in bounds_sources)
-    maxx = max(g.bounds[2] for g in bounds_sources)
-    maxy = max(g.bounds[3] for g in bounds_sources)
-    pad_x = max((maxx - minx) * 0.08, 10_000)
-    pad_y = max((maxy - miny) * 0.08, 10_000)
-    ax.set_xlim(minx - pad_x, maxx + pad_x)
-    ax.set_ylim(miny - pad_y, maxy + pad_y)
+        # Get best path found
+        path_idx, _, _, _ = aco.get_result()
+        tour = [point_names[i] for i in path_idx]
 
-    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
-    ax.set_axis_off()
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(filename, dpi=200)
-    plt.show()
+        # Make sure we start and end at the start point
+        cycle = tour[:-1]
+        cycle = rotate_cycle(cycle, start_point)
+        tour = cycle + [start_point]
 
-def plot_bar_compare(aco_sec, dijkstra_sec):
-    plt.figure(figsize=(6, 4))
-    plt.bar(["ACO", "Dijkstra"], [aco_sec/60, dijkstra_sec/60])
-    plt.ylabel("Total travel time (minutes)")
-    plt.title("ACO vs Dijkstra (baseline)")
-    plt.tight_layout()
-    plt.savefig("aco_vs_dijkstra.png", dpi=200)
+        # Calcuate cost of this route
+        cost = 0.0
+        for i in range(len(tour) - 1):
+            a = point_names.index(tour[i])
+            b = point_names.index(tour[i + 1])
+            cost += float(distance_matrix_km[a, b])
 
-def plot_tuning(x_vals, y_vals, x_label, filename):
-    plt.figure(figsize=(7, 4))
-    plt.plot(x_vals, y_vals, marker="o")
-    plt.xlabel(x_label)
-    plt.ylabel("Best route time (minutes)")
-    plt.title("ACO Parameter Tuning")
-    plt.tight_layout()
-    plt.savefig(filename, dpi=200)
+        # Keep best score for each unique route
+        key = tuple(tour)
+        if key not in best_by_route or cost < best_by_route[key]:
+            best_by_route[key] = cost
 
-# ----------------------------
-# 7) Main
-# ----------------------------
+    # Rank best routes found
+    ranked = sorted(best_by_route.items(), key=lambda kv: kv[1])
+    best_routes = [list(t) for t, _ in ranked[:top_k]]
+    best_costs = [c for _, c in ranked[:top_k]]
+
+    # Return best routes and their costs
+    return best_routes, best_costs
+
+################
+# MAP PLOTTING #
+################
+
+def plot_html_map(
+    route: list[str],
+    filename: str = "aco_best_route.html",
+) -> None:
+    """Plot HTML map of the route using in OpenStreetMap"""
+
+    # Extract latitudes and longitudes
+    lats = [POINTS_OF_INTEREST[name][0] for name in route]
+    lons = [POINTS_OF_INTEREST[name][1] for name in route]
+
+    # Create map centered around average location
+    center = (float(np.mean(lats)), float(np.mean(lons)))
+
+    # Create folium map
+    m = folium.Map(location=center, zoom_start=13, control_scale=True)
+
+    # Add markers for each point
+    for i, name in enumerate(route[:-1]):
+        lat, lon = POINTS_OF_INTEREST[name]
+        folium.Marker(
+            location=(lat, lon),
+            popup=f"{i}: {name}",
+            tooltip=f"{i}: {name}",
+        ).add_to(m)
+
+    # Draw a straight line from point to point
+    folium.PolyLine(
+        locations=[(POINTS_OF_INTEREST[name][0], POINTS_OF_INTEREST[name][1]) for name in route],
+        color="blue",
+        weight=5,
+        opacity=0.85,
+    ).add_to(m)
+
+    # Save map to HTML file
+    m.save(filename)
+    print(f"Saved HTML map: {filename}")
+
+#################
+# MAIN FUNCTION #
+#################
+
+def main() -> None:
+
+    # Step 1: Load points of interest
+    point_names = list(POINTS_OF_INTEREST.keys())
+    print("Step 1/4: Cities loaded:")
+    print(", ".join(point_names))
+
+    # Step 2: Compute distance matrix
+    print("\nStep 2/4: Computing straight line distances")
+    t0 = time.time()
+    distance_matrix_km = compute_distance_matrix(point_names)
+    print(f"Computed in {time.time() - t0:.1f}s")
+
+    # Step 3: Run ACO to find best route
+    print("\nStep 3/4: Running ACO")
+    routes, costs = run_aco(
+        point_names=point_names,                # Places of interest
+        distance_matrix_km=distance_matrix_km,  # Distance matrix table
+        start_point=START_POINT,                # Starting point
+        runs=8,                                 # Run ACO 8 times because it is random to increase chances of finding good route
+        top_k=1,                                # Take only 1 best route (k=1)
+        ants=300,                               # 300 ants is a good balance between speed and quality
+        iterations=200,                         # 200 iterations is usually a good balance between speed and quality for 8 points
+        evaporation_rate=0.20,                  # 20% pheromone evaporation keeps exploring prevents ants getting stuck too early
+        intensification=0.30,                   # 30% pheromone intensification to help good routes stand out
+        alpha=1.00,                             # 1.0 ant pheromone trust (1.0 = normal / balanced)
+        beta=2.00,                              # 2.0 ant distance trust (2.0 = prefer nearer points more)
+        beta_evaporation_rate=0.0,              # 0.0 beta evaporation rate (0.0 = no change over time)
+        choose_best=0.10,                       # 10% of the time, ants choose best path which helps convergence
+        conv_crit=25,                           # Stop early if no improvement for 25 iterations to save time
+    )
+
+    # Step 4: Plot best route
+    print("\nStep 4/4: Fastest route found:")
+    route, sec = routes[0], costs[0]
+    print(" -> ".join(route))
+    print(f"Total straight line distance: {sec:.2f} km")
+    plot_html_map(route, filename="aco_best_route.html")
 
 if __name__ == "__main__":
     main()

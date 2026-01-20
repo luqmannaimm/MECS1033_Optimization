@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_68f4997e7bc93a87235b1a457e69d6c1 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_68f4997e7bc93a87235b1a457e69d6c1" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_68f4997e7bc93a87235b1a457e69d6c1 = L.map(
+                "map_68f4997e7bc93a87235b1a457e69d6c1",
+                {
+                    center: [3.1467444444444443, 101.70347777777778],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 13,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+            L.control.scale().addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+
+            
+
+        
+    
+            var tile_layer_dfd9a43e1812bce97f0c19f984da8f91 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_dfd9a43e1812bce97f0c19f984da8f91.addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+            var marker_62e4f8bbd6b6218a149e93e74db011f2 = L.marker(
+                [3.1579, 101.7123],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_7e63ca57ea504d5432db790d58f3984a = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_53fc076632961c16c3973b17f24c75e9 = $(`<div id="html_53fc076632961c16c3973b17f24c75e9" style="width: 100.0%; height: 100.0%;">0: KLCC</div>`)[0];
+                popup_7e63ca57ea504d5432db790d58f3984a.setContent(html_53fc076632961c16c3973b17f24c75e9);
+            
+        
+
+        marker_62e4f8bbd6b6218a149e93e74db011f2.bindPopup(popup_7e63ca57ea504d5432db790d58f3984a)
+        ;
+
+        
+    
+    
+            marker_62e4f8bbd6b6218a149e93e74db011f2.bindTooltip(
+                `<div>
+                     0: KLCC
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_06ed743427f28d67030aac034dbc9244 = L.marker(
+                [3.1528, 101.7037],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_17d24126f02f4e73221d3ffdf21690ed = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_89c0cb7c1cd4e83e6d00b26f9eea73e5 = $(`<div id="html_89c0cb7c1cd4e83e6d00b26f9eea73e5" style="width: 100.0%; height: 100.0%;">1: Menara Kuala Lumpur</div>`)[0];
+                popup_17d24126f02f4e73221d3ffdf21690ed.setContent(html_89c0cb7c1cd4e83e6d00b26f9eea73e5);
+            
+        
+
+        marker_06ed743427f28d67030aac034dbc9244.bindPopup(popup_17d24126f02f4e73221d3ffdf21690ed)
+        ;
+
+        
+    
+    
+            marker_06ed743427f28d67030aac034dbc9244.bindTooltip(
+                `<div>
+                     1: Menara Kuala Lumpur
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_b1389200f03af567fce550497435b3c1 = L.marker(
+                [3.1486, 101.6932],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_5d88d711e59ecaac9d81aa2a78c65585 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_9e3a23763955052e22d0bfb37a5848f9 = $(`<div id="html_9e3a23763955052e22d0bfb37a5848f9" style="width: 100.0%; height: 100.0%;">2: Merdeka Square</div>`)[0];
+                popup_5d88d711e59ecaac9d81aa2a78c65585.setContent(html_9e3a23763955052e22d0bfb37a5848f9);
+            
+        
+
+        marker_b1389200f03af567fce550497435b3c1.bindPopup(popup_5d88d711e59ecaac9d81aa2a78c65585)
+        ;
+
+        
+    
+    
+            marker_b1389200f03af567fce550497435b3c1.bindTooltip(
+                `<div>
+                     2: Merdeka Square
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_b60a960cc546d0e961a95aca925f3202 = L.marker(
+                [3.1419, 101.691],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_a74fd1142c438750e89d8f70b637812f = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_7d0a2c9ca17bfef8ec46002e6c89198a = $(`<div id="html_7d0a2c9ca17bfef8ec46002e6c89198a" style="width: 100.0%; height: 100.0%;">3: National Mosque of Malaysia</div>`)[0];
+                popup_a74fd1142c438750e89d8f70b637812f.setContent(html_7d0a2c9ca17bfef8ec46002e6c89198a);
+            
+        
+
+        marker_b60a960cc546d0e961a95aca925f3202.bindPopup(popup_a74fd1142c438750e89d8f70b637812f)
+        ;
+
+        
+    
+    
+            marker_b60a960cc546d0e961a95aca925f3202.bindTooltip(
+                `<div>
+                     3: National Mosque of Malaysia
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_3006e8d971abc837357cfca57ded3728 = L.marker(
+                [3.1379, 101.687],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_0ece95ce1a46c294b104991d5c50aa1b = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_346a177ace8b1785411c8b68a83112d6 = $(`<div id="html_346a177ace8b1785411c8b68a83112d6" style="width: 100.0%; height: 100.0%;">4: Malaysia National Museum</div>`)[0];
+                popup_0ece95ce1a46c294b104991d5c50aa1b.setContent(html_346a177ace8b1785411c8b68a83112d6);
+            
+        
+
+        marker_3006e8d971abc837357cfca57ded3728.bindPopup(popup_0ece95ce1a46c294b104991d5c50aa1b)
+        ;
+
+        
+    
+    
+            marker_3006e8d971abc837357cfca57ded3728.bindTooltip(
+                `<div>
+                     4: Malaysia National Museum
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_73650247239e3e50af9c6a12e0818e94 = L.marker(
+                [3.1397, 101.7],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_5a82f16722766aece7392030797f7fbb = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_a677d5f0bfdb4529dccac9fabe540b40 = $(`<div id="html_a677d5f0bfdb4529dccac9fabe540b40" style="width: 100.0%; height: 100.0%;">5: Stadium Merdeka</div>`)[0];
+                popup_5a82f16722766aece7392030797f7fbb.setContent(html_a677d5f0bfdb4529dccac9fabe540b40);
+            
+        
+
+        marker_73650247239e3e50af9c6a12e0818e94.bindPopup(popup_5a82f16722766aece7392030797f7fbb)
+        ;
+
+        
+    
+    
+            marker_73650247239e3e50af9c6a12e0818e94.bindTooltip(
+                `<div>
+                     5: Stadium Merdeka
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_0d61619ce5e277ab4ec7a3123476b1d9 = L.marker(
+                [3.142, 101.7119],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_0e96062a093bd7cec2e3015ffc7308ce = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_b0da8e9a172562dde20df8e67b098424 = $(`<div id="html_b0da8e9a172562dde20df8e67b098424" style="width: 100.0%; height: 100.0%;">6: Berjaya Times Square</div>`)[0];
+                popup_0e96062a093bd7cec2e3015ffc7308ce.setContent(html_b0da8e9a172562dde20df8e67b098424);
+            
+        
+
+        marker_0d61619ce5e277ab4ec7a3123476b1d9.bindPopup(popup_0e96062a093bd7cec2e3015ffc7308ce)
+        ;
+
+        
+    
+    
+            marker_0d61619ce5e277ab4ec7a3123476b1d9.bindTooltip(
+                `<div>
+                     6: Berjaya Times Square
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_1c25192936f34ab4756234b05d149a86 = L.marker(
+                [3.142, 101.7199],
+                {
+}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+    
+        var popup_c7cc9ec2373b8a2f72c09fdddbccdda7 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_e92d965e54a942655a346546dd302e3e = $(`<div id="html_e92d965e54a942655a346546dd302e3e" style="width: 100.0%; height: 100.0%;">7: Menara TRX</div>`)[0];
+                popup_c7cc9ec2373b8a2f72c09fdddbccdda7.setContent(html_e92d965e54a942655a346546dd302e3e);
+            
+        
+
+        marker_1c25192936f34ab4756234b05d149a86.bindPopup(popup_c7cc9ec2373b8a2f72c09fdddbccdda7)
+        ;
+
+        
+    
+    
+            marker_1c25192936f34ab4756234b05d149a86.bindTooltip(
+                `<div>
+                     7: Menara TRX
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var poly_line_1b9aa1ac4d21e2d1c3c67f3333121302 = L.polyline(
+                [[3.1579, 101.7123], [3.1528, 101.7037], [3.1486, 101.6932], [3.1419, 101.691], [3.1379, 101.687], [3.1397, 101.7], [3.142, 101.7119], [3.142, 101.7199], [3.1579, 101.7123]],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "blue", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.85, "smoothFactor": 1.0, "stroke": true, "weight": 5}
+            ).addTo(map_68f4997e7bc93a87235b1a457e69d6c1);
+        
+</script>
+</html>
