@@ -16,8 +16,7 @@ python -m venv _venv
 
 2) Install dependencies
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## Run
@@ -32,3 +31,4 @@ When it finishes:
 
 ## Notes
 - The route cost is computed using straight line distance only, not actual road routes.
+- `matplotlib` is required because the downloaded ACO code imports it.
