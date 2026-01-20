@@ -11,7 +11,7 @@ import time
 import folium
 import numpy as np
 
-# ACO solver downloaded from github
+# ACO solver downloaded from github: https://github.com/OptiNobles/tsp-ant-colony
 from aco.AntColonyOptimizer import AntColonyOptimizer
 
 ###################
@@ -73,10 +73,6 @@ def compute_distance_matrix(poi_names: list[str]) -> np.ndarray:
     # Return distance matrix
     return matrix
 
-###################################
-# CONVERT COORDINATES TO DISTANCE #
-###################################
-
 def convert_coor_to_dist(city_names: list[str]) -> list[list[float]]:
     """Convert latitude and longitude into xy distance in km"""
 
@@ -99,6 +95,10 @@ def convert_coor_to_dist(city_names: list[str]) -> list[list[float]]:
     
     # Return list of xy points
     return np.column_stack([x, y]).tolist()
+
+####################
+# HELPER FUNCTIONS #
+####################
 
 def rotate_cycle(cycle: list[str], start_point: str) -> list[str]:
     """Rotate a cycle so it begins at start point"""
@@ -129,7 +129,7 @@ def run_aco(
     choose_best: float,
     conv_crit: int,
 ) -> tuple[list[list[str]], list[float]]:
-    """Find a good visiting order using ACO"""
+    """Find best route using ACO"""
 
     # Convert lat and lon to xy distances in km
     points = convert_coor_to_dist(point_names)
@@ -163,24 +163,24 @@ def run_aco(
             verbose=(seed == 0),
         )
 
-        # Get best path found
-        path_idx, _, _, _ = aco.get_result()
-        tour = [point_names[i] for i in path_idx]
+        # Get best route found
+        route_idx, _, _, _ = aco.get_result()
+        route = [point_names[i] for i in route_idx]
 
         # Make sure we start and end at the start point
-        cycle = tour[:-1]
+        cycle = route[:-1]
         cycle = rotate_cycle(cycle, start_point)
-        tour = cycle + [start_point]
+        route = cycle + [start_point]
 
         # Calcuate cost of this route
         cost = 0.0
-        for i in range(len(tour) - 1):
-            a = point_names.index(tour[i])
-            b = point_names.index(tour[i + 1])
+        for i in range(len(route) - 1):
+            a = point_names.index(route[i])
+            b = point_names.index(route[i + 1])
             cost += float(distance_matrix_km[a, b])
 
         # Keep best score for each unique route
-        key = tuple(tour)
+        key = tuple(route)
         if key not in best_by_route or cost < best_by_route[key]:
             best_by_route[key] = cost
 
@@ -196,10 +196,7 @@ def run_aco(
 # MAP PLOTTING #
 ################
 
-def plot_html_map(
-    route: list[str],
-    filename: str = "aco_best_route.html",
-) -> None:
+def plot_html_map(route: list[str], filename: str = "aco_best_route.html") -> str:
     """Plot HTML map of the route using in OpenStreetMap"""
 
     # Extract latitudes and longitudes
@@ -209,7 +206,7 @@ def plot_html_map(
     # Create map centered around average location
     center = (float(np.mean(lats)), float(np.mean(lons)))
 
-    # Create folium map
+    # Create open street map using folium
     m = folium.Map(location=center, zoom_start=13, control_scale=True)
 
     # Add markers for each point
@@ -231,7 +228,9 @@ def plot_html_map(
 
     # Save map to HTML file
     m.save(filename)
-    print(f"Saved HTML map: {filename}")
+
+    # Return filename
+    return filename
 
 #################
 # MAIN FUNCTION #
@@ -241,40 +240,46 @@ def main() -> None:
 
     # Step 1: Load points of interest
     point_names = list(POINTS_OF_INTEREST.keys())
-    print("Step 1/4: Cities loaded:")
+    print("\n[Step 1/5] Loading points of interest")
     print(", ".join(point_names))
 
     # Step 2: Compute distance matrix
-    print("\nStep 2/4: Computing straight line distances")
+    print("\n[Step 2/5] Computing straight line distances")
     t0 = time.time()
     distance_matrix_km = compute_distance_matrix(point_names)
-    print(f"Computed in {time.time() - t0:.1f}s")
+    print(f"Computed in {time.time() - t0:.3f}s")
 
     # Step 3: Run ACO to find best route
-    print("\nStep 3/4: Running ACO")
+    print("\n[Step 3/5] Running ACO")
     routes, costs = run_aco(
         point_names=point_names,                # Places of interest
         distance_matrix_km=distance_matrix_km,  # Distance matrix table
         start_point=START_POINT,                # Starting point
-        runs=8,                                 # Run ACO 8 times because it is random to increase chances of finding good route
-        top_k=1,                                # Take only 1 best route (k=1)
-        ants=300,                               # 300 ants is a good balance between speed and quality
-        iterations=200,                         # 200 iterations is usually a good balance between speed and quality for 8 points
-        evaporation_rate=0.20,                  # 20% pheromone evaporation keeps exploring prevents ants getting stuck too early
-        intensification=0.30,                   # 30% pheromone intensification to help good routes stand out
-        alpha=1.00,                             # 1.0 ant pheromone trust (1.0 = normal / balanced)
-        beta=2.00,                              # 2.0 ant distance trust (2.0 = prefer nearer points more)
-        beta_evaporation_rate=0.0,              # 0.0 beta evaporation rate (0.0 = no change over time)
-        choose_best=0.10,                       # 10% of the time, ants choose best path which helps convergence
-        conv_crit=25,                           # Stop early if no improvement for 25 iterations to save time
+        runs=8,                                 # 8 runs. Less runs for faster results, more for better quality but slower
+        top_k=1,                                # 1 best route. Can be increased to take more best routes
+        ants=300,                               # 300 ants. Less ants for faster results, more for better quality but slower
+        iterations=200,                         # 200 iters. Lower iters for faster results, higher for better quality but slower
+        evaporation_rate=0.20,                  # 20% pheromone evaporation. Lower for faster results, higher for more exploration but slower
+        intensification=0.30,                   # 30% pheromone intensification. Lower for more exploration but slower learning, higher for faster learning
+        alpha=1.00,                             # 1.0 ant pheromone trust. Higher value puts more trust in pheromone trails, lower value puts more trust in distance
+        beta=2.00,                              # 2.0 ant distance trust. Higher value puts more trust in distance, lower value puts more trust in pheromone trails
+        beta_evaporation_rate=0.0,              # 0.0 beta evaporation rate. Higher value reduces distance influence, lower value keeps distance influence constant
+        choose_best=0.10,                       # 10% of the time. Higher value makes ants choose best path more often, lower value makes ants explore more
+        conv_crit=25,                           # 25 iters for convergence. Lower value for faster results, higher for better quality but slower
     )
 
-    # Step 4: Plot best route
-    print("\nStep 4/4: Fastest route found:")
+    # Step 4: Show best route
+    print("\n[Step 4/5] Fastest route found!")
     route, sec = routes[0], costs[0]
     print(" -> ".join(route))
     print(f"Total straight line distance: {sec:.2f} km")
-    plot_html_map(route, filename="aco_best_route.html")
+
+    # Step 5: Plot best route on map
+    print("\n[Step 5/5] Plotting best route on map")
+    filename =plot_html_map(route, filename="aco_best_route.html")
+    print(f"Map saved to {filename}")
+
+    print("\nDone!")
 
 if __name__ == "__main__":
     main()
